@@ -1,5 +1,5 @@
-// Remove any direct imports of next/headers
-import { GoogleGenerativeAI } from "@google/generative-ai"
+// Import only client-safe dependencies
+import { safePost, safeGet } from "../api/safe-api-client"
 
 // Types for our test generation
 type TestPrompt = {
@@ -35,133 +35,71 @@ type GeneratedTest = {
   }
 }
 
-// Initialize the Gemini API client
-const getGeminiClient = () => {
-  const apiKey = process.env.GOOGLE_API_KEY
-
-  if (!apiKey) {
-    throw new Error("GOOGLE_API_KEY environment variable is not set")
-  }
-
-  return new GoogleGenerativeAI(apiKey)
-}
-
-// Create a structured prompt for Gemini
-const createTestPrompt = (params: TestPrompt): string => {
-  const {
-    discipline,
-    category,
-    difficulty,
-    duration,
-    numSections,
-    specificSkills = [],
-    additionalInstructions = "",
-  } = params
-
-  return `
-Create a creative assessment test for ${discipline} professionals, specifically in ${category}.
-The test should be at ${difficulty} level and take approximately ${duration} minutes to complete.
-It should have exactly ${numSections} sections.
-
-${specificSkills.length > 0 ? `The test should assess these specific skills: ${specificSkills.join(", ")}` : ""}
-${additionalInstructions ? `Additional requirements: ${additionalInstructions}` : ""}
-
-Return the response as a JSON object with the following structure:
-{
-  "title": "A descriptive title for the test",
-  "discipline": "${discipline}",
-  "category": "${category}",
-  "sections": [
-    {
-      "title": "Section title",
-      "type": "One of: text, image, video, audio, file, code",
-      "timeLimit": Number of minutes for this section,
-      "instructions": "Detailed instructions for the candidate",
-      "submissionType": "One of: text, file, link, code",
-      "outputFormat": "Expected format of submission (optional)"
-    }
-  ],
-  "settings": {
-    "watermark": true or false,
-    "preventSkipping": true or false,
-    "limitAttempts": true or false
-  }
-}
-
-Make sure the test is challenging but fair, and the instructions are clear and specific.
-`
-}
-
-// Parse and validate the AI response
-const parseAIResponse = (response: string): GeneratedTest => {
-  try {
-    // Extract JSON from the response (in case the AI includes additional text)
-    const jsonMatch = response.match(/\{[\s\S]*\}/)
-    if (!jsonMatch) {
-      throw new Error("No valid JSON found in the response")
-    }
-
-    const jsonStr = jsonMatch[0]
-    const parsedResponse = JSON.parse(jsonStr)
-
-    // Validate the response structure
-    if (!parsedResponse.title || !parsedResponse.sections || !Array.isArray(parsedResponse.sections)) {
-      throw new Error("Invalid response structure")
-    }
-
-    return parsedResponse as GeneratedTest
-  } catch (error) {
-    console.error("Error parsing AI response:", error)
-    throw new Error("Failed to parse AI response")
-  }
-}
-
-// Generate a test using Gemini
+// Client-safe implementation that uses API endpoints instead of direct imports
 export async function generateTestWithAI(params: TestPrompt): Promise<GeneratedTest> {
   try {
-    const gemini = getGeminiClient()
-    const model = gemini.getGenerativeModel({ model: "gemini-1.5-pro" })
+    // Use the API endpoint instead of direct Gemini integration
+    const response = await safePost<GeneratedTest>("/api/generate-test", params)
 
-    const prompt = createTestPrompt(params)
-    console.log("Sending prompt to Gemini:", prompt)
-
-    const result = await model.generateContent(prompt)
-    const response = result.response
-    const text = response.text()
-
-    console.log("Received response from Gemini:", text.substring(0, 200) + "...")
-
-    return parseAIResponse(text)
-  } catch (error) {
-    console.error("Error generating test with Gemini:", error)
-
-    // Fallback to mock data if there's an error or API key is missing
-    if (error.message?.includes("GOOGLE_API_KEY") || process.env.NODE_ENV === "development") {
-      console.log("Using mock data as fallback")
-      return getMockTest(params)
+    if (response.error) {
+      throw new Error(response.error)
     }
 
-    throw new Error(error.message || "Failed to generate test with AI")
+    return response.data!
+  } catch (error) {
+    console.error("Error generating test with AI:", error)
+    return getMockTest(params)
   }
 }
 
-// Save the AI-generated test to the database
+// Save the AI-generated test via API
 export async function saveAIGeneratedTest(userId: string, testData: GeneratedTest) {
   try {
-    // Implementation will depend on your database structure
-    // This is a placeholder
-    console.log("Saving AI-generated test:", testData)
+    const response = await safePost("/api/save-test", {
+      userId,
+      testData,
+    })
 
-    // Return a mock response for now
-    return {
-      id: "test_" + Math.random().toString(36).substring(2, 9),
-      ...testData,
-      created_at: new Date().toISOString(),
-      user_id: userId,
+    if (response.error) {
+      throw new Error(response.error)
     }
+
+    return response.data
   } catch (error) {
     console.error("Error saving AI-generated test:", error)
-    throw new Error(error.message || "Failed to save AI-generated test")
+    throw new Error(error instanceof Error ? error.message : "Failed to save test")
+  }
+}
+
+// Validate an invitation token via API
+export async function validateInvitationToken(token: string) {
+  try {
+    const response = await safeGet(`/api/invitations/validate?token=${encodeURIComponent(token)}`)
+
+    if (response.error) {
+      throw new Error(response.error)
+    }
+
+    return response.data
+  } catch (error) {
+    console.error("Error validating invitation token:", error)
+    throw new Error(error instanceof Error ? error.message : "Invalid invitation token")
+  }
+}
+
+// Get test sections via API
+export async function getTestSections(testId: string) {
+  try {
+    const response = await safeGet(`/api/tests/${testId}/sections`)
+
+    if (response.error) {
+      throw new Error(response.error)
+    }
+
+    return response.data
+  } catch (error) {
+    console.error("Error getting test sections:", error)
+    throw new Error(error instanceof Error ? error.message : "Failed to get test sections")
   }
 }
 

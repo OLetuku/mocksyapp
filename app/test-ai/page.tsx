@@ -8,6 +8,7 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
 import { Loader2 } from "lucide-react"
+import { safeGet, safePost } from "@/lib/api/safe-api-client"
 
 export default function TestAIPage() {
   const [isLoading, setIsLoading] = useState(false)
@@ -45,11 +46,15 @@ export default function TestAIPage() {
     setError(null)
 
     try {
-      const response = await fetch("/api/ai/status")
-      const data = await response.json()
-      setApiStatus(data)
+      const response = await safeGet("/api/ai/status")
+
+      if (response.error) {
+        throw new Error(response.error)
+      }
+
+      setApiStatus(response.data)
     } catch (error) {
-      setError("Failed to check API status: " + error.message)
+      setError("Failed to check API status: " + (error instanceof Error ? error.message : "Unknown error"))
     } finally {
       setIsLoading(false)
     }
@@ -69,24 +74,16 @@ export default function TestAIPage() {
         duration: Number(testParams.duration),
       }
 
-      // Call the API endpoint instead of importing the service directly
-      const response = await fetch("/api/generate-test", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(payload),
-      })
+      // Call the API endpoint
+      const response = await safePost("/api/generate-test", payload)
 
-      if (!response.ok) {
-        const errorData = await response.json()
-        throw new Error(errorData.error || "Failed to generate test")
+      if (response.error) {
+        throw new Error(response.error)
       }
 
-      const result = await response.json()
-      setTestResult(result)
+      setTestResult(response.data)
     } catch (error) {
-      setError("Failed to generate test: " + error.message)
+      setError("Failed to generate test: " + (error instanceof Error ? error.message : "Unknown error"))
     } finally {
       setIsLoading(false)
     }

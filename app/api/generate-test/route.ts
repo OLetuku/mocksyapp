@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server"
-import { generateTestWithAI } from "@/lib/services/ai-test-service"
+import { generateTestWithAIServer } from "@/lib/services/server/ai-service"
 
 export async function POST(request: Request) {
   try {
@@ -10,12 +10,15 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Missing required fields: discipline and category" }, { status: 400 })
     }
 
-    // Generate test with AI
-    const result = await generateTestWithAI(body)
+    // Generate test with AI (server-side implementation)
+    const result = await generateTestWithAIServer(body)
 
     return NextResponse.json(result)
   } catch (error) {
     console.error("Error generating test:", error)
-    return NextResponse.json({ error: error.message || "Failed to generate test" }, { status: 500 })
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : "Failed to generate test" },
+      { status: 500 },
+    )
   }
 }
