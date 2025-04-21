@@ -62,7 +62,10 @@
     "@supabase/auth-helpers-nextjs": "latest",
     "uuid": "latest",
     "nodemailer": "latest",
-    "@google/generative-ai": "latest"
+    "@google/generative-ai": "latest",
+    "fs": "latest",
+    "path": "latest",
+    "util": "latest"
   },
   "devDependencies": {
     "@types/node": "^22",
