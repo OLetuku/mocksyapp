@@ -69,9 +69,21 @@ export default function TestAIPage() {
         duration: Number(testParams.duration),
       }
 
-      // Call your AI test service directly
-      const { generateTestWithAI } = await import("@/lib/services/ai-test-service")
-      const result = await generateTestWithAI(payload)
+      // Call the API endpoint instead of importing the service directly
+      const response = await fetch("/api/generate-test", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(payload),
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.error || "Failed to generate test")
+      }
+
+      const result = await response.json()
       setTestResult(result)
     } catch (error) {
       setError("Failed to generate test: " + error.message)
